@@ -1,8 +1,11 @@
-from typing import Final
 import os
+from typing import Final
+
+from discord import Intents, Client, app_commands, Object, Interaction
 from dotenv import load_dotenv
-from discord import Intents, Client, Message
-from responses import get_response
+
+import csv
+import pandas as pd
 
 load_dotenv()
 TOKEN: Final[str] = os.getenv("DISCORD_TOKEN")
@@ -10,38 +13,31 @@ TOKEN: Final[str] = os.getenv("DISCORD_TOKEN")
 intents: Intents = Intents.default()
 intents.message_content = True  # NOQA
 client: Client = Client(intents=intents)
+tree = app_commands.CommandTree(client)
 
 
-async def send_message(message: Message, user_message: str) -> None:
-    if not user_message:
-        print("Message was empty (because intents were not enabled probably)")
+@tree.command(
+    name="create_channel",
+    description="My first application Command",
+    guild=Object(id=1224912313023467531)
+)
+async def first_command(interaction: Interaction, channel_name: str):
+
+    df = pd.read_csv('user_data.csv')
+    ids = df.user_id
+
+    if interaction.user.id in ids:
         return
-    # Private message functionality
-    if is_private := user_message[0] == "?":
-        user_message = user_message[1:]
-    try:
-        response: str = get_response(user_message)
-        await message.author.send(response) if is_private else await message.channel.send(response)
-    except Exception as e:
-        print(e)
+
+    with open('user_data.csv', 'a') as file:
+        writer = csv.writer(file)
+        writer.writerow([interaction.user.id, channel_name])
 
 
 @client.event
 async def on_ready() -> None:
+    await tree.sync(guild=Object(id=1224912313023467531))
     print(f'{client.user} is now running!')
-
-
-@client.event
-async def on_message(message: Message) -> None:
-    if message.author == client.user:
-        return
-
-    username: str = str(message.author)
-    user_message: str = message.content
-    channel: str = str(message.channel)
-
-    print(f'[{channel}] {username}: "{user_message}"')
-    await send_message(message, user_message)
 
 
 def main() -> None:
